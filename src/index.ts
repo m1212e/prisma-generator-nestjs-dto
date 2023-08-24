@@ -2,13 +2,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import makeDir from 'make-dir';
 import slash from 'slash';
-import { generatorHandler } from '@prisma/generator-helper';
+import {generatorHandler} from '@prisma/generator-helper';
 import prettier from 'prettier';
-import { logger, parseEnvValue } from './utils';
-import { run } from './generator';
+import {logger, parseEnvValue} from './utils';
+import {run} from './generator';
 
-import type { GeneratorOptions } from '@prisma/generator-helper';
-import type { WriteableFileSpecs, NamingStyle } from './generator/types';
+import type {GeneratorOptions} from '@prisma/generator-helper';
+import type {WriteableFileSpecs, NamingStyle} from './generator/types';
 
 const stringToBoolean = (input: string, defaultValue = false) => {
   if (input === 'true') {
@@ -20,6 +20,17 @@ const stringToBoolean = (input: string, defaultValue = false) => {
 
   return defaultValue;
 };
+
+export function assertSingleValue<T>(value: T | T[] | undefined): T {
+  if (!value) {
+    throw new Error(`Expected value to be not undefined`);
+  }
+  if (typeof value === 'object' && Array.isArray(value)) {
+    throw new Error(`Expected non-array value for ${value}`);
+  }
+
+  return value;
+}
 
 export const generate = async (options: GeneratorOptions) => {
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -40,24 +51,24 @@ export const generate = async (options: GeneratorOptions) => {
   } = options.generator.config;
 
   const exportRelationModifierClasses = stringToBoolean(
-    options.generator.config.exportRelationModifierClasses,
+    assertSingleValue(options.generator.config.exportRelationModifierClasses),
     true,
   );
 
   const outputToNestJsResourceStructure = stringToBoolean(
-    options.generator.config.outputToNestJsResourceStructure,
+    assertSingleValue(options.generator.config.outputToNestJsResourceStructure),
     // using `true` as default value would be a breaking change
     false,
   );
 
   const flatResourceStructure = stringToBoolean(
-    options.generator.config.flatResourceStructure,
+    assertSingleValue(options.generator.config.flatResourceStructure),
     // using `true` as default value would be a breaking change
     false,
   );
 
   const reExport = stringToBoolean(
-    options.generator.config.reExport,
+    assertSingleValue(options.generator.config.reExport),
     // using `true` as default value would be a breaking change
     false,
   );
@@ -66,7 +77,7 @@ export const generate = async (options: GeneratorOptions) => {
   const isSupportedFileNamingStyle = (style: string): style is NamingStyle =>
     supportedFileNamingStyles.includes(style);
 
-  if (!isSupportedFileNamingStyle(fileNamingStyle)) {
+  if (!isSupportedFileNamingStyle(assertSingleValue(fileNamingStyle))) {
     throw new Error(
       `'${fileNamingStyle}' is not a valid file naming style. Valid options are ${supportedFileNamingStyles
         .map((s) => `'${s}'`)
@@ -75,20 +86,20 @@ export const generate = async (options: GeneratorOptions) => {
   }
 
   const classValidation = stringToBoolean(
-    options.generator.config.classValidation,
+    assertSingleValue(options.generator.config.classValidation),
     // using `true` as default value would be a breaking change
     false,
   );
 
   const supportedOutputTypes = ['class', 'interface'];
-  if (!supportedOutputTypes.includes(outputType)) {
+  if (!supportedOutputTypes.includes(assertSingleValue(outputType))) {
     throw new Error(
       `'${outputType}' is not a valid output type. Valid options are 'class' and 'interface'.`,
     );
   }
 
   const noDependencies = stringToBoolean(
-    options.generator.config.noDependencies,
+    assertSingleValue(options.generator.config.noDependencies),
     // using `true` as default value would be a breaking change
     false,
   );
@@ -106,7 +117,7 @@ export const generate = async (options: GeneratorOptions) => {
   }
 
   const definiteAssignmentAssertion = stringToBoolean(
-    options.generator.config.definiteAssignmentAssertion,
+    assertSingleValue(options.generator.config.definiteAssignmentAssertion),
     false,
   );
   if (definiteAssignmentAssertion && outputType !== 'class') {
@@ -116,7 +127,7 @@ export const generate = async (options: GeneratorOptions) => {
   }
 
   const requiredResponseApiProperty = stringToBoolean(
-    options.generator.config.requiredResponseApiProperty,
+    assertSingleValue(options.generator.config.requiredResponseApiProperty),
     true,
   );
 
@@ -150,15 +161,15 @@ export const generate = async (options: GeneratorOptions) => {
     exportRelationModifierClasses,
     outputToNestJsResourceStructure,
     flatResourceStructure,
-    connectDtoPrefix,
-    createDtoPrefix,
-    updateDtoPrefix,
-    dtoSuffix,
-    entityPrefix,
-    entitySuffix,
-    fileNamingStyle,
+    connectDtoPrefix: assertSingleValue(connectDtoPrefix),
+    createDtoPrefix: assertSingleValue(createDtoPrefix),
+    updateDtoPrefix: assertSingleValue(updateDtoPrefix),
+    dtoSuffix: assertSingleValue(dtoSuffix),
+    entityPrefix: assertSingleValue(entityPrefix),
+    entitySuffix: assertSingleValue(entitySuffix),
+    fileNamingStyle: assertSingleValue(fileNamingStyle) as NamingStyle,
     classValidation,
-    outputType,
+    outputType: assertSingleValue(outputType),
     noDependencies,
     definiteAssignmentAssertion,
     requiredResponseApiProperty,
@@ -168,10 +179,10 @@ export const generate = async (options: GeneratorOptions) => {
   const indexCollections: Record<string, WriteableFileSpecs> = {};
 
   if (reExport) {
-    results.forEach(({ fileName }) => {
+    results.forEach(({fileName}) => {
       const dirName = path.dirname(fileName);
 
-      const { [dirName]: fileSpec } = indexCollections;
+      const {[dirName]: fileSpec} = indexCollections;
       indexCollections[dirName] = {
         fileName: fileSpec?.fileName || path.join(dirName, 'index.ts'),
         content: [
@@ -202,7 +213,7 @@ export const generate = async (options: GeneratorOptions) => {
   }
 
   const applyPrettier = stringToBoolean(
-    options.generator.config.prettier,
+    options.generator.config.prettier as string,
     false,
   );
 
@@ -233,10 +244,12 @@ export const generate = async (options: GeneratorOptions) => {
   return Promise.all(
     results
       .concat(Object.values(indexCollections))
-      .map(async ({ fileName, content }) => {
+      .map(async ({fileName, content}) => {
         await makeDir(path.dirname(fileName));
 
-        if (applyPrettier) content = prettier.format(content, prettierConfig);
+        if (applyPrettier) {
+          content = await prettier.format(content, prettierConfig);
+        }
 
         return fs.writeFile(fileName, content);
       }),
